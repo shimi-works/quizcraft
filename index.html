@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>といラボ ― ノートから小テストを作って弱点だけ復習</title>
+<title>QuizCraft ― ノートから小テストを作って弱点だけ復習</title>
 <style>
 :root{
   --bg:#0f1115; --panel:#171a21; --panel2:#1e222c; --line:#2a2f3a;
@@ -102,7 +102,7 @@ tr.retired td:last-child{text-decoration:none}
 
 <header>
   <div>
-    <h1><button onclick="showView('home')">といラボ</button></h1>
+    <h1><button onclick="showView('home')">QuizCraft</button></h1>
     <div class="sub">ノートから小テスト。間違いだけ、忘れた頃にもう一度。</div>
   </div>
   <button class="btn" onclick="openSettings()">設定</button>
@@ -234,7 +234,7 @@ tr.retired td:last-child{text-decoration:none}
       </div>
     </div>
     <div class="row spread" style="margin-top:16px">
-      <span class="muted">といラボ v1.0</span>
+      <span class="muted">QuizCraft v1.0</span>
       <button class="btn primary" onclick="closeSettings()">保存して閉じる</button>
     </div>
   </div>
@@ -246,7 +246,7 @@ tr.retired td:last-child{text-decoration:none}
 "use strict";
 
 /* ========== 定数・状態 ========== */
-const LS_STATE="toilab.state", LS_KEY="toilab_apikey";
+const LS_STATE="quizcraft.state", LS_KEY="quizcraft_apikey";
 const MODELPOOL=["gemini-2.5-flash","gemini-2.5-flash-lite","gemini-2.0-flash"];
 const MAX_IMG_DIM=1568;        // Gemini visionに送る画像の最長辺（トークン・容量対策）
 const MAX_IMAGES=6;
@@ -660,7 +660,7 @@ function exportState(){
   const blob=new Blob([JSON.stringify(state,null,2)],{type:"application/json"});
   const a=document.createElement("a");
   a.href=URL.createObjectURL(blob);
-  a.download=`toilab-export-${todayStr()}.json`;
+  a.download=`quizcraft-export-${todayStr()}.json`;
   a.click();
   URL.revokeObjectURL(a.href);
 }

@@ -1,11 +1,11 @@
-# CLAUDE.md — といラボ (toi-lab)
+# CLAUDE.md — QuizCraft (quizcraft)
 
 ## このプロジェクト
 
 - 講義ノート・教科書から確認テストを生成し、間違いだけを間隔反復するWebアプリ
 - 構成: 単一HTMLファイル（index.html）＋ tests/
 - LLM: **Gemini API無料枠をブラウザから直叩き**（`dev-os/knowledge/patterns/gemini-direct-browser.md` の型）
-- 管理情報: `C:\Users\smzyt\apps\dev-os\projects\toi-lab\`（設計判断は design.md）
+- 管理情報: `C:\Users\smzyt\apps\dev-os\projects\quizcraft\`（設計判断は design.md）
 
 ## 開発標準
 
@@ -17,7 +17,7 @@
 - **精度対策の三層を崩さない**: ①全問題に evidence（教材原文の抜粋）必須＋答え合わせで常時表示 ②プロンプトで教材範囲外からの出題を禁止 ③「この問題おかしい」ボタンで破棄（retired。削除はしない）
 - 生成モデルは品質優先の既定（gemini-2.5-flash・thinking有効）。速度目的で thinkingBudget:0 にしない（語彙ラボとは逆の判断。理由は design.md）
 - SRSは `// ==SRS-START== / ==SRS-END==` マーカー内の純関数のみで実装する。このブロックにDOM・localStorage・Date.now()を持ち込まない（tests/srs.test.mjs が抽出実行するため）
-- localStorageスキーマ（toilab.state）を変更するときはマイグレーションを書く
+- localStorageスキーマ（quizcraft.state）を変更するときはマイグレーションを書く
 
 ## 動作確認
 
