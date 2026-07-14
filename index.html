@@ -66,6 +66,8 @@ header .spacer{flex:1}
 .optrow .f{flex:1}
 
 /* 履歴 */
+.hist-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.hist-head .btn{padding:3px 10px;font-size:12px}
 .hist{display:flex;flex-direction:column;gap:6px;max-height:200px;overflow:auto}
 .hist .h{display:flex;gap:8px;align-items:center;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:7px 9px;font-size:12.5px}
 .hist .h .t{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--sub)}
@@ -119,6 +121,8 @@ footer{padding:10px 18px;color:var(--sub);font-size:12px;border-top:1px solid va
   #print-area{display:block!important;color:#000;background:#fff;font-size:12pt;line-height:1.7}
   body{background:#fff!important;display:block}
   #print-area h2{font-size:14pt;margin:0 0 12pt}
+  #print-area h2+h2, #print-area .pq+h2{margin-top:16pt}
+  #print-area h3{font-size:12pt;margin:12pt 0 6pt}
   #print-area .pans{page-break-before:always;break-before:page}
   #print-area .pq{margin:0 0 14pt;page-break-inside:avoid;break-inside:avoid;white-space:pre-wrap}
   #print-area .psol{color:#333;font-size:11pt;margin-top:4pt;white-space:pre-wrap}
@@ -183,7 +187,7 @@ footer{padding:10px 18px;color:var(--sub);font-size:12px;border-top:1px solid va
     </div>
 
     <div class="card">
-      <h2>履歴（この端末に保存）</h2>
+      <h2 class="hist-head">履歴（この端末に保存）<button class="btn" id="hist-print" onclick="printAllHist()" title="履歴の全セットを1つの演習プリントにして印刷">まとめて印刷</button></h2>
       <div class="hist" id="hist"><div class="muted">まだありません。</div></div>
     </div>
   </div>
@@ -570,14 +574,19 @@ async function copyQuestionsOnly(){
 }
 
 /* ========== 印刷（演習プリント） ========== */
-async function printSet(){
-  if(!current || !current.items.length)return;
-  const pa=$("print-area"), qs=current.items;
+// sets=[{topic,items}] を 問題ページ→改ページ→解答ページ の1プリントにする（複数セットはセットごとに見出し）
+function runPrint(sets){
+  const pa=$("print-area");
   pa.innerHTML=
-    `<h2>${M(current.topic||"演習問題")}（${qs.length}問）</h2>`+
-    qs.map((it,i)=>`<div class="pq"><b>問${i+1}.</b>　${M(it.q)}${(()=>{const f=sanitizeSVG(it.figure);return f?`<div class="pfig">${f}</div>`:"";})()}</div>`).join("")+
+    sets.map(s=>
+      `<h2>${M(s.topic||"演習問題")}（${s.items.length}問）</h2>`+
+      s.items.map((it,i)=>`<div class="pq"><b>問${i+1}.</b>　${M(it.q)}${(()=>{const f=sanitizeSVG(it.figure);return f?`<div class="pfig">${f}</div>`:"";})()}</div>`).join("")
+    ).join("")+
     `<h2 class="pans">解答・解説</h2>`+
-    qs.map((it,i)=>`<div class="pq"><b>問${i+1}.</b>　<b>答え:</b> ${M(it.answer)}<div class="psol">${M(it.solution)}</div></div>`).join("");
+    sets.map(s=>
+      (sets.length>1?`<h3>${M(s.topic||"演習問題")}</h3>`:"")+
+      s.items.map((it,i)=>`<div class="pq"><b>問${i+1}.</b>　<b>答え:</b> ${M(it.answer)}<div class="psol">${M(it.solution)}</div></div>`).join("")
+    ).join("");
   setStatus('<span class="spinner"></span>印刷の準備中…');
   ensureMathJax(()=>{
     typesetSvgLabels(pa);
@@ -585,6 +594,15 @@ async function printSet(){
     if(window.MathJax&&window.MathJax.typesetPromise) window.MathJax.typesetPromise([pa]).then(done,done);
     else done();
   });
+}
+function printSet(){
+  if(!current || !current.items.length)return;
+  runPrint([current]);
+}
+function printAllHist(){
+  const h=loadHist().filter(s=>s.items&&s.items.length);
+  if(!h.length){toast("履歴がまだありません");return;}
+  runPrint(h);   // 履歴一覧と同じ順（新しい順）
 }
 
 /* ========== 画像取り込み ========== */
