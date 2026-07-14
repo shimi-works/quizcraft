@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>QuizCraft ― ノートから小テストを作って弱点だけ復習</title>
+<title>QuizCraft ― 例題から類題を作って演習</title>
 <style>
 :root{
   --bg:#0f1115; --panel:#171a21; --panel2:#1e222c; --line:#2a2f3a;
@@ -57,25 +57,36 @@ h2{font-size:16px;margin-bottom:8px}
 .thumb button{position:absolute;top:-6px;right:-6px;width:22px;height:22px;border-radius:50%;background:var(--ng);color:#fff;font-size:12px;line-height:1}
 fieldset{border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin-top:8px}
 legend{font-size:12px;color:var(--sub);padding:0 4px}
-label.opt{margin-right:12px;font-size:14px;cursor:pointer}
+label.opt{margin-right:12px;font-size:14px;cursor:pointer;display:inline-block;margin-bottom:2px}
+
+/* 出題スタイル切替 */
+.modeseg{display:flex;gap:8px;margin-top:8px}
+.modeseg label{flex:1;border:1px solid var(--line);border-radius:10px;padding:10px 12px;cursor:pointer;transition:border-color .15s ease,background .15s ease}
+.modeseg label:hover{border-color:var(--accent)}
+.modeseg label.on{border-color:var(--accent);background:#1a2233}
+.modeseg .t{font-size:14px;font-weight:600}
+.modeseg .d{font-size:12px;color:var(--sub);display:block;margin-top:2px}
+.modeseg input{position:absolute;opacity:0;pointer-events:none}
 
 /* クイズ */
 .progress{height:6px;background:var(--panel2);border-radius:999px;overflow:hidden;margin-bottom:16px}
 .progress i{display:block;height:100%;background:var(--accent);transition:width .2s ease}
-.qtext{font-size:17px;margin:8px 0 16px;white-space:pre-wrap}
+.qtext{font-size:17px;margin:8px 0 16px;white-space:pre-wrap;overflow-x:auto}
 .choices{display:grid;gap:8px}
 .choice{display:flex;gap:10px;align-items:baseline;text-align:left;padding:12px 14px;border:1px solid var(--line);border-radius:8px;background:var(--panel2);transition:border-color .15s ease}
 .choice:hover{border-color:var(--accent)}
 .choice .key{color:var(--sub);font-size:12px;flex-shrink:0}
+.choice .ct{min-width:0;overflow-x:auto}
 .choice.sel-ok{border-color:var(--ok);background:#16281f}
 .choice.sel-ng{border-color:var(--ng);background:#2b1a1d}
 .choice.reveal{border-color:var(--ok)}
 .feedback{margin-top:16px;border-top:1px solid var(--line);padding-top:16px}
 .verdict{font-size:18px;font-weight:700}
 .verdict.ok{color:var(--ok)} .verdict.ng{color:var(--ng)}
-.evidence{margin-top:8px;padding:10px 12px;border-left:3px solid var(--accent);background:var(--panel2);border-radius:0 8px 8px 0;font-size:13px;color:var(--sub);white-space:pre-wrap}
+.evidence{margin-top:8px;padding:10px 12px;border-left:3px solid var(--accent);background:var(--panel2);border-radius:0 8px 8px 0;font-size:14px;color:var(--sub);white-space:pre-wrap;overflow-x:auto}
 .evidence b{color:var(--text);font-size:12px;display:block;margin-bottom:4px}
 .mono{font-family:Consolas,"Courier New",monospace}
+mjx-container{overflow-x:auto;overflow-y:hidden;max-width:100%}
 
 /* デッキ詳細 */
 table{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
@@ -103,7 +114,7 @@ tr.retired td:last-child{text-decoration:none}
 <header>
   <div>
     <h1><button onclick="showView('home')">QuizCraft</button></h1>
-    <div class="sub">ノートから小テスト。間違いだけ、忘れた頃にもう一度。</div>
+    <div class="sub">例題から類題、ノートから確認テスト。間違いだけ、忘れた頃にもう一度。</div>
   </div>
   <button class="btn" onclick="openSettings()">設定</button>
 </header>
@@ -125,18 +136,35 @@ tr.retired td:last-child{text-decoration:none}
   <div class="card">
     <div class="row spread">
       <h2>デッキ</h2>
-      <button class="btn primary" onclick="showView('ingest')">＋ 教材から作る</button>
+      <button class="btn primary" onclick="showView('ingest')">＋ 問題を作る</button>
     </div>
-    <div id="deck-list"><div class="muted" style="margin-top:8px">まだデッキがありません。「＋ 教材から作る」からどうぞ。</div></div>
+    <div id="deck-list"><div class="muted" style="margin-top:8px">まだデッキがありません。「＋ 問題を作る」からどうぞ。</div></div>
   </div>
 </section>
 
 <!-- 取り込み -->
 <section id="view-ingest" class="hidden">
   <div class="card">
-    <h2>教材を貼る</h2>
-    <p class="muted">講義ノート・教科書の文章を貼り付けるか、ノートの写真を追加してください（両方でも可）。</p>
-    <textarea id="src-text" rows="8" placeholder="ここに教材のテキストを貼り付け…" style="margin-top:8px"></textarea>
+    <h2 id="ingest-title">例題から類題を作る</h2>
+    <p class="muted" id="ingest-desc">解きたい問題（例題）をテキストで貼るか、写真を追加してください。似た演習問題をAIが作って解説します。</p>
+
+    <fieldset style="border:none;padding:0;margin-top:12px">
+      <legend style="padding:0">作るもの</legend>
+      <div class="modeseg" id="modeseg">
+        <label data-mode="practice" class="on">
+          <input type="radio" name="mode" value="practice" checked>
+          <span class="t">類題を作る（演習）</span>
+          <span class="d">例題に似た新しい問題を作って解く。数学・理科向け</span>
+        </label>
+        <label data-mode="review">
+          <input type="radio" name="mode" value="review">
+          <span class="t">確認テスト</span>
+          <span class="d">ノート・教科書の用語や定義を暗記する。文系・暗記向け</span>
+        </label>
+      </div>
+    </fieldset>
+
+    <textarea id="src-text" rows="8" placeholder="ここに例題を貼り付け…（写真だけでもOK）" style="margin-top:12px"></textarea>
     <div class="dropzone" id="dropzone">
       画像: この画面で Ctrl+V で貼り付け／ドラッグ&amp;ドロップ／<button class="ghost" style="text-decoration:underline" onclick="document.getElementById('src-file').click()">ファイルを選ぶ</button>
       <input type="file" id="src-file" accept="image/*" multiple class="hidden">
@@ -145,28 +173,28 @@ tr.retired td:last-child{text-decoration:none}
 
     <fieldset>
       <legend>問題数</legend>
-      <label class="opt"><input type="radio" name="qcount" value="5">5問</label>
-      <label class="opt"><input type="radio" name="qcount" value="10" checked>10問</label>
+      <label class="opt"><input type="radio" name="qcount" value="5" checked>5問</label>
+      <label class="opt"><input type="radio" name="qcount" value="10">10問</label>
       <label class="opt"><input type="radio" name="qcount" value="15">15問</label>
     </fieldset>
-    <fieldset>
+    <fieldset id="fs-types" class="hidden">
       <legend>問題タイプ（複数可）</legend>
       <label class="opt"><input type="checkbox" id="type-choice" checked>4択</label>
       <label class="opt"><input type="checkbox" id="type-cloze" checked>穴埋め</label>
       <label class="opt"><input type="checkbox" id="type-free">記述（自己採点）</label>
     </fieldset>
     <fieldset>
-      <legend>難易度</legend>
+      <legend id="diff-legend">難易度</legend>
       <select id="difficulty">
-        <option value="mix" selected>おまかせ（混合）</option>
-        <option value="basic">基礎（用語・定義の確認）</option>
-        <option value="standard">標準（内容の理解）</option>
-        <option value="advanced">応用（考え方の適用）</option>
+        <option value="mix" selected>おまかせ</option>
+        <option value="basic">やさしめ</option>
+        <option value="standard">標準</option>
+        <option value="advanced">難しめ</option>
       </select>
     </fieldset>
     <fieldset>
       <legend>追加の指示（任意）</legend>
-      <input id="extra-inst" placeholder="例: 後半の◯◯の部分だけから出題して" style="width:100%">
+      <input id="extra-inst" placeholder="例: 部分積分を使う問題にして／記述量は3行以内で" style="width:100%">
     </fieldset>
     <div class="row" style="margin-top:16px">
       <input id="deck-name" placeholder="デッキ名（空なら日付）" style="flex:1">
@@ -220,7 +248,9 @@ tr.retired td:last-child{text-decoration:none}
     <div class="field">
       <label>生成モデル（品質重視の既定を推奨。上限に当たったら自動で切替します）</label>
       <select id="set-model">
-        <option value="gemini-2.5-flash">gemini-2.5-flash（高品質・推奨）</option>
+        <option value="gemini-flash-latest">gemini-flash-latest（最新を自動追従・推奨）</option>
+        <option value="gemini-3.5-flash">gemini-3.5-flash（最新・高品質）</option>
+        <option value="gemini-2.5-flash">gemini-2.5-flash（安定）</option>
         <option value="gemini-2.5-flash-lite">gemini-2.5-flash-lite（軽量・上限ゆるめ）</option>
         <option value="gemini-2.0-flash">gemini-2.0-flash（別枠のフォールバック）</option>
       </select>
@@ -234,7 +264,7 @@ tr.retired td:last-child{text-decoration:none}
       </div>
     </div>
     <div class="row spread" style="margin-top:16px">
-      <span class="muted">QuizCraft v1.0</span>
+      <span class="muted">QuizCraft v1.1</span>
       <button class="btn primary" onclick="closeSettings()">保存して閉じる</button>
     </div>
   </div>
@@ -247,28 +277,36 @@ tr.retired td:last-child{text-decoration:none}
 
 /* ========== 定数・状態 ========== */
 const LS_STATE="quizcraft.state", LS_KEY="quizcraft_apikey";
-const MODELPOOL=["gemini-2.5-flash","gemini-2.5-flash-lite","gemini-2.0-flash"];
+const MODELPOOL=["gemini-flash-latest","gemini-3.5-flash","gemini-2.5-flash","gemini-2.5-flash-lite","gemini-2.0-flash"];
 const MAX_IMG_DIM=1568;        // Gemini visionに送る画像の最長辺（トークン・容量対策）
 const MAX_IMAGES=6;
 const DIFF_LABEL={basic:"基礎",standard:"標準",advanced:"応用"};
-const TYPE_LABEL={choice:"4択",cloze:"穴埋め",free:"記述"};
+const TYPE_LABEL={choice:"4択",cloze:"穴埋め",free:"記述",solve:"演習"};
+
+// 難易度セレクトの表示ラベル（モードで意味が変わるので出し分ける）
+const DIFF_OPTS={
+  practice:{mix:"おまかせ（同程度中心）",basic:"やさしめ（基礎）",standard:"例題と同じくらい",advanced:"少し難しめ（応用）"},
+  review:{mix:"おまかせ（混合）",basic:"基礎（用語・定義の確認）",standard:"標準（内容の理解）",advanced:"応用（考え方の適用）"}
+};
 
 let state=loadState();
 let images=[];                 // 取り込み中の画像 [{mime,b64,url}]
-let session=null;              // クイズ中 {ids,idx,correctIds,wrongIds,phase,summaryNote}
+let session=null;              // クイズ中 {ids,idx,correct,wrong,phase,summaryNote}
 
 function loadState(){
   try{
     const s=JSON.parse(localStorage.getItem(LS_STATE));
     if(s && s.version===1) return s;
   }catch(e){}
-  return {version:1, decks:[], questions:[], settings:{model:"gemini-2.5-flash", dayBoundaryHour:3}};
+  return {version:1, decks:[], questions:[], settings:{model:"gemini-flash-latest", dayBoundaryHour:3}};
 }
 function saveState(){localStorage.setItem(LS_STATE,JSON.stringify(state));}
 function getKey(){return localStorage.getItem(LS_KEY)||"";}
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,8);}
 function todayStr(){return srsToday(Date.now(), state.settings.dayBoundaryHour);}
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+// 要素テキスト用: HTMLだけ無害化し、$…$ や \ はMathJaxのために残す（属性値には使わないこと）
+function M(s){return String(s??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
 
 /* ========== SRS（Leitner式・純関数。tests/srs.test.mjs がこのブロックを抽出して検証する） ========== */
 // ==SRS-START==
@@ -303,12 +341,42 @@ function srsQueue(questions, today){
 }
 // ==SRS-END==
 
-/* ========== Gemini API（無料枠直叩き・429で自動モデル切替。goi-labの型） ========== */
+/* ========== MathJax プレビュー（SnapTeX から流用・mhchem対応） ========== */
+let mjReady=false,mjLoading=false,mjFailed=false,mjQueue=[];
+function flushMj(){const q=mjQueue;mjQueue=[];q.forEach(fn=>{try{fn();}catch(e){}});}
+function ensureMathJax(cb){
+  if(mjFailed){cb&&cb();return;}          // 読めなくても生テキストは表示済み。処理は止めない
+  if(mjReady){cb&&cb();return;}
+  if(cb)mjQueue.push(cb);
+  if(mjLoading)return;
+  mjLoading=true;
+  window.MathJax={loader:{load:["[tex]/mhchem"]},tex:{packages:{"[+]":["mhchem"]},inlineMath:[["$","$"],["\\(","\\)"]],displayMath:[["$$","$$"],["\\[","\\]"]]},svg:{fontCache:"global"},startup:{typeset:false}};
+  const s=document.createElement("script");
+  s.src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js";
+  s.onload=()=>{
+    const p=(window.MathJax&&window.MathJax.startup&&window.MathJax.startup.promise)||Promise.resolve();
+    p.then(()=>{mjReady=true;flushMj();},()=>{mjReady=true;flushMj();});
+  };
+  s.onerror=()=>{mjFailed=true;mjLoading=false;mjQueue=[];};   // オフライン等: 数式は生テキストのまま表示
+  document.head.appendChild(s);
+}
+// コンテナ内の $…$ / $$…$$ を数式描画する
+function typesetMath(el){
+  if(!el)return;
+  ensureMathJax(()=>{
+    if(!window.MathJax||!window.MathJax.typesetPromise)return;
+    try{window.MathJax.typesetClear&&window.MathJax.typesetClear([el]);}catch(_){}
+    window.MathJax.typesetPromise([el]).catch(()=>{});
+  });
+}
+
+/* ========== Gemini API（無料枠直叩き・429/モデル不可で自動切替。SnapTeXの型） ========== */
 async function callGemini(parts, schema, maxTokens=24000){
   const key=getKey();
   if(!key){openSettings();throw new Error("APIキーが未設定です。設定画面から登録してください。");}
   const pref=state.settings.model||MODELPOOL[0];
   const pool=[pref,...MODELPOOL.filter(m=>m!==pref)];
+  let lastErr="";
   for(let mi=0; mi<pool.length; mi++){
     const model=pool[mi];
     // 生成は低頻度なので品質優先: thinkingは無効化しない（thinkingトークンも出力枠を食うためmaxTokensは大きめ）
@@ -316,31 +384,56 @@ async function callGemini(parts, schema, maxTokens=24000){
     const url=`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
     let res;
     for(let attempt=0;attempt<3;attempt++){
-      res=await fetch(url,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
+      try{
+        res=await fetch(url,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
+      }catch(netErr){throw new Error("ネットワークに接続できませんでした。オフラインか確認してください。");}
       if(res.status!==503 && res.status!==500) break;
       if(attempt<2) await new Promise(r=>setTimeout(r,1500*(attempt+1)));
     }
-    if(res.status===429 && mi<pool.length-1) continue;   // 上限→次のモデルへ
+    // モデルが使えない/見つからない（新規非提供・廃止・別名違い等）→ 次のモデルへ
+    let raw="";
+    if(!res.ok){try{const e=await res.clone().json();raw=e.error?.message||"";}catch(_){}}
+    const modelGone=res.status===404||(res.status===400&&/no longer available|not\s*available|not\s*found|not\s*supported|unsupported|is not found/i.test(raw));
+    if((res.status===429||modelGone) && mi<pool.length-1){lastErr=modelGone?"モデル利用不可":"上限(429)";continue;}
     if(!res.ok){
       let msg=res.status+" "+res.statusText;
-      try{const e=await res.json();msg=e.error?.message||msg;}catch(_){}
+      if(raw)msg=raw;
       if(res.status===400 && /API key|API_KEY/i.test(msg)) msg="APIキーが無効です。設定を確認してください。";
       if(res.status===403) msg="APIキーが無効か権限がありません。設定を確認してください。";
       if(res.status===429) msg="全モデルで無料枠の上限に達しました。しばらく待つか、明日また試してください（無料枠は日本の昼ごろリセット）。";
+      if(modelGone) msg="利用できるモデルが見つかりませんでした。設定でモデルを変えて試すか、時間をおいてください。";
       if(res.status===503||res.status===500) msg="Geminiが一時的に混雑しています。数十秒おいて再試行してください。";
       throw new Error(msg);
     }
     const data=await res.json();
-    if(data.promptFeedback?.blockReason) throw new Error("教材が安全上の理由でブロックされました。内容を変えて試してください。");
+    if(data.promptFeedback?.blockReason) throw new Error("入力が安全上の理由でブロックされました。内容を変えて試してください。");
     const cand=data.candidates?.[0];
     const text=(cand?.content?.parts||[]).map(p=>p.text).filter(Boolean).join("");
-    if(!text) throw new Error("応答を取得できませんでした。"+(cand?.finishReason?` (${cand.finishReason})`:""));
+    if(!text){
+      if(cand?.finishReason==="MAX_TOKENS") throw new Error("出力が長すぎて途中で切れました。問題数を減らすか、例題を短くして試してください。");
+      throw new Error("応答を取得できませんでした。"+(cand?.finishReason?` (${cand.finishReason})`:""));
+    }
+    if(model!==pref){state.settings.model=model;saveState();const sel=document.getElementById("set-model");if(sel)sel.value=model;}
     return JSON.parse(text);
   }
+  throw new Error("生成できませんでした。"+(lastErr?`（${lastErr}）`:""));
 }
 
-/* ========== 問題生成 ========== */
-const QUIZ_SCHEMA={type:"OBJECT",properties:{
+/* ========== スキーマ ========== */
+// 類題（演習）: AI自身が解いた最終解答 answer と途中式 solution を必須にする
+const PRACTICE_SCHEMA={type:"OBJECT",properties:{
+  topic:{type:"STRING"},
+  questions:{type:"ARRAY",items:{type:"OBJECT",properties:{
+    q:{type:"STRING"},
+    answer:{type:"STRING"},
+    solution:{type:"STRING"},
+    difficulty:{type:"STRING",enum:["basic","standard","advanced"]}
+  },required:["q","answer","solution","difficulty"],
+    propertyOrdering:["q","answer","solution","difficulty"]}}
+},required:["topic","questions"],propertyOrdering:["topic","questions"]};
+
+// 確認テスト: 教材の範囲から出題し evidence（教材抜粋）を必須にする
+const REVIEW_SCHEMA={type:"OBJECT",properties:{
   summary:{type:"STRING"},
   questions:{type:"ARRAY",items:{type:"OBJECT",properties:{
     type:{type:"STRING",enum:["choice","cloze","free"]},
@@ -354,7 +447,32 @@ const QUIZ_SCHEMA={type:"OBJECT",properties:{
     propertyOrdering:["type","q","choices","answer","explanation","evidence","difficulty"]}}
 },required:["summary","questions"],propertyOrdering:["summary","questions"]};
 
-function buildPrompt(text, n, types, difficulty, extra, hasImages){
+/* ========== プロンプト ========== */
+function buildPracticePrompt(text, n, difficulty, extra, hasImages){
+  const diffMap={mix:"例題と同程度を中心に、少しやさしい〜少し難しいまで散らす",
+    basic:"例題よりやさしめ（基礎の確認レベル）", standard:"例題と同程度", advanced:"例題より少し難しめ（応用・ひとひねり）"};
+  return `あなたは演習問題を作るプロの出題者です（数学・物理・化学ほか演習科目全般）。
+以下は学習者が「これに似た問題で練習したい」と持ってきた例題です${hasImages?"（テキストと画像）":""}。
+この例題と同じ分野・同じ種類・同じ問い方の【新しい演習問題】を${n}問作ってください。
+
+ルール（厳守）:
+1. 例題の丸写しや、数字を1つだけ変えた焼き直しは禁止。設定・数値・文脈を十分に変えた別問題にする。ただし「問われている力」と「解法の型」は例題と同じにする。
+2. 各問題はそれ単体で解けるよう自己完結させる。「上の例題の」「この問題では前問の」などの参照表現は禁止。
+3. 【最重要・品質の要】必ずあなた自身が最後まで解き、答えを検算してから出題する。answer には最終解答だけを簡潔に書く（例: $x=3$、$\\dfrac{\\pi}{4}$、$12$ 個）。solution には途中式と考え方を順序立てて書く。答えが確定しない・破綻する問題は作らず、作れる分だけでよい。
+4. 数式・記号はすべてLaTeXで書く。文中の式はインライン $ … $、独立して見せる式は別行立て $$ … $$。分数は \\dfrac、根号 \\sqrt、指数・添字 x^{2}, a_{n}、総和 \\sum、積分 \\int などを正しく使う。化学式・反応式は mhchem 記法 \\ce{...}（例: $\\ce{H2O}$、$$\\ce{2H2 + O2 -> 2H2O}$$）。
+5. 難易度: ${diffMap[difficulty]||diffMap.standard}。
+6. 例題が数学以外（英作文・小論述・語学・歴史論述など）でも、同じ形式の新しい練習問題として作る。その場合 answer は模範解答、solution は書き方・採点のポイントにする。
+7. topic に、この例題が何の分野・どんなタイプの問題かを1行で書く（学習者が狙いのズレに気づくためのもの）。${extra?`
+
+追加の指示: ${extra}`:""}
+
+例題:
+---
+${text||"（テキストなし。画像の例題を参照）"}
+---`;
+}
+
+function buildReviewPrompt(text, n, types, difficulty, extra, hasImages){
   const typeDesc=types.map(t=>({choice:"choice（4択）",cloze:"cloze（穴埋め）",free:"free（記述）"}[t])).join("、");
   const diffDesc=difficulty==="mix"?"basic/standard/advancedを混ぜる":`全問 ${difficulty}`;
   return `あなたは大学の講義内容の確認テストを作る出題者です。以下の教材${hasImages?"（テキストと画像）":""}から確認テストを${n}問作成してください。
@@ -366,7 +484,7 @@ function buildPrompt(text, n, types, difficulty, extra, hasImages){
 4. choice の選択肢は4つ。誤答は教材内の別の概念・数値・条件との混同を突くものにし、明らかに無関係な選択肢を入れない。answer は正解選択肢の文字列そのもの
 5. cloze は問題文中の空欄を「＿＿」で示し、answer は空欄に入る語句
 6. free は短い記述問題とし、answer に模範解答（2〜3文以内）を書く
-7. 数式は $...$ のLaTeX表記を使う
+7. 数式は $...$ / $$...$$ のLaTeX表記を使う（化学式は \\ce{...}）
 8. summary に、教材をどう読み取ったかを3行以内で書く（利用者が読み違いに気づくためのもの）
 
 使ってよい問題タイプ: ${typeDesc}
@@ -379,8 +497,18 @@ ${text||"（テキストなし。画像を参照）"}
 ---`;
 }
 
-// スキーマを通っても壊れている問題は落とす（choiceの選択肢不足・answer不在など）
-function validateQuestions(raw, allowedTypes){
+/* ========== 検証（スキーマを通っても壊れている問題は落とす） ========== */
+function validatePractice(raw){
+  const ok=[]; let dropped=0;
+  for(const r of (raw||[])){
+    if(!r || !r.q || !r.answer || !r.solution){dropped++;continue;}
+    ok.push({type:"solve", q:String(r.q), choices:null, answer:String(r.answer),
+      solution:String(r.solution), explanation:"", evidence:"",
+      difficulty:r.difficulty||"standard"});
+  }
+  return {ok, dropped};
+}
+function validateReview(raw, allowedTypes){
   const ok=[]; let dropped=0;
   for(const r of (raw||[])){
     if(!r || !r.q || !r.answer || !r.evidence || !allowedTypes.includes(r.type)){dropped++;continue;}
@@ -388,12 +516,12 @@ function validateQuestions(raw, allowedTypes){
       const ch=(r.choices||[]).map(c=>String(c).trim()).filter(Boolean);
       const ans=String(r.answer).trim();
       if(ch.length<3 || !ch.includes(ans)){dropped++;continue;}
-      ok.push({...r, choices:ch, answer:ans});
+      ok.push({...r, choices:ch, answer:ans, solution:""});
     }else if(r.type==="cloze"){
       if(!/[＿_]{2,}/.test(r.q)){dropped++;continue;}
-      ok.push({...r, choices:null});
+      ok.push({...r, choices:null, solution:""});
     }else{
-      ok.push({...r, choices:null});
+      ok.push({...r, choices:null, solution:""});
     }
   }
   return {ok, dropped};
@@ -401,37 +529,51 @@ function validateQuestions(raw, allowedTypes){
 
 async function generate(){
   const text=document.getElementById("src-text").value.trim();
-  if(!text && images.length===0){toast("教材のテキストか画像を入れてください");return;}
+  if(!text && images.length===0){toast("例題のテキストか画像を入れてください");return;}
   if(!getKey()){openSettings();toast("先にAPIキーを設定してください");return;}
-  const types=[["choice","type-choice"],["cloze","type-cloze"],["free","type-free"]]
-    .filter(([,id])=>document.getElementById(id).checked).map(([t])=>t);
-  if(types.length===0){toast("問題タイプを1つ以上選んでください");return;}
+  const mode=document.querySelector('input[name="mode"]:checked').value;
   const n=Number(document.querySelector('input[name="qcount"]:checked').value);
   const difficulty=document.getElementById("difficulty").value;
   const extra=document.getElementById("extra-inst").value.trim();
 
+  let types=[];
+  if(mode==="review"){
+    types=[["choice","type-choice"],["cloze","type-cloze"],["free","type-free"]]
+      .filter(([,id])=>document.getElementById(id).checked).map(([t])=>t);
+    if(types.length===0){toast("問題タイプを1つ以上選んでください");return;}
+  }
+
   const btn=document.getElementById("gen-btn"), status=document.getElementById("gen-status");
   btn.disabled=true;
-  status.innerHTML='<div class="muted" style="margin-top:8px"><span class="spinner"></span>生成中…（品質重視モデルのため数十秒かかることがあります）</div>';
+  status.innerHTML='<div class="muted" style="margin-top:8px"><span class="spinner"></span>'
+    +(mode==="practice"?"類題を作成中…（AIが1問ずつ解いて検算するため数十秒かかることがあります）":"生成中…（品質重視モデルのため数十秒かかることがあります）")+'</div>';
   try{
-    const parts=[{text:buildPrompt(text,n,types,difficulty,extra,images.length>0)}];
+    const hasImg=images.length>0;
+    const prompt=mode==="practice"
+      ? buildPracticePrompt(text,n,difficulty,extra,hasImg)
+      : buildReviewPrompt(text,n,types,difficulty,extra,hasImg);
+    const parts=[{text:prompt}];
     for(const img of images) parts.push({inlineData:{mimeType:img.mime,data:img.b64}});
-    const res=await callGemini(parts,QUIZ_SCHEMA);
-    const {ok,dropped}=validateQuestions(res.questions,types);
-    if(ok.length===0) throw new Error("有効な問題を生成できませんでした。教材の量を増やすか、内容を変えて試してください。");
+
+    const res=await callGemini(parts, mode==="practice"?PRACTICE_SCHEMA:REVIEW_SCHEMA);
+    const {ok,dropped}= mode==="practice" ? validatePractice(res.questions) : validateReview(res.questions,types);
+    if(ok.length===0) throw new Error(mode==="practice"
+      ? "有効な類題を生成できませんでした。例題がはっきり写っているか確認し、問題数を減らして試してください。"
+      : "有効な問題を生成できませんでした。教材の量を増やすか、内容を変えて試してください。");
 
     const today=todayStr();
-    const deck={id:uid(), name:document.getElementById("deck-name").value.trim()||today+" のテスト",
-                createdAt:today, sourceDigest:(text||"（画像教材）").slice(0,80)};
+    const deck={id:uid(), mode, name:document.getElementById("deck-name").value.trim()||today+(mode==="practice"?" の類題":" のテスト"),
+                createdAt:today, sourceDigest:(text||"（画像の例題）").slice(0,80)};
     state.decks.push(deck);
     for(const r of ok){
       state.questions.push({id:uid(), deckId:deck.id, type:r.type, q:r.q, choices:r.choices,
-        answer:r.answer, explanation:r.explanation||"", evidence:r.evidence,
+        answer:r.answer, explanation:r.explanation||"", solution:r.solution||"", evidence:r.evidence||"",
         difficulty:r.difficulty||"standard", srs:srsNewCard(today)});
     }
     saveState();
-    // 読み違い検出用の要約をクイズ冒頭に出す
-    const note=`AIの教材の読み取り: ${res.summary||"（要約なし）"}${dropped?` ／ 形式不備で${dropped}問を除外しました`:""}`;
+    // 読み違い検出用のメモをクイズ冒頭に出す
+    const head=mode==="practice"?`AIが捉えた例題: ${res.topic||"（なし）"}`:`AIの教材の読み取り: ${res.summary||"（要約なし）"}`;
+    const note=head+(dropped?` ／ 形式不備で${dropped}問を除外しました`:"");
     resetIngest();
     startSession(state.questions.filter(q=>q.deckId===deck.id).map(q=>q.id), note);
   }catch(e){
@@ -461,7 +603,7 @@ function addImageFile(file){
 }
 function renderThumbs(){
   document.getElementById("thumbs").innerHTML=images.map((im,i)=>
-    `<div class="thumb"><img src="${im.url}" alt="教材画像${i+1}"><button onclick="removeImage(${i})" aria-label="削除">×</button></div>`).join("");
+    `<div class="thumb"><img src="${im.url}" alt="例題画像${i+1}"><button onclick="removeImage(${i})" aria-label="削除">×</button></div>`).join("");
 }
 function removeImage(i){images.splice(i,1);renderThumbs();}
 function resetIngest(){
@@ -470,6 +612,24 @@ function resetIngest(){
   document.getElementById("deck-name").value="";
   document.getElementById("extra-inst").value="";
   document.getElementById("gen-status").innerHTML="";
+}
+
+/* ========== 出題スタイル切替 ========== */
+function applyMode(){
+  const mode=document.querySelector('input[name="mode"]:checked').value;
+  [...document.querySelectorAll('#modeseg label')].forEach(l=>l.classList.toggle("on",l.dataset.mode===mode));
+  document.getElementById("fs-types").classList.toggle("hidden", mode!=="review");
+  document.getElementById("ingest-title").textContent = mode==="practice" ? "例題から類題を作る" : "教材から確認テストを作る";
+  document.getElementById("ingest-desc").textContent = mode==="practice"
+    ? "解きたい問題（例題）をテキストで貼るか、写真を追加してください。似た演習問題をAIが作って解説します。"
+    : "講義ノート・教科書の文章を貼るか、ノートの写真を追加してください。用語や定義の確認テストを作ります。";
+  document.getElementById("src-text").placeholder = mode==="practice"
+    ? "ここに例題を貼り付け…（写真だけでもOK）" : "ここに教材のテキストを貼り付け…";
+  document.getElementById("extra-inst").placeholder = mode==="practice"
+    ? "例: 部分積分を使う問題にして／記述量は3行以内で" : "例: 後半の◯◯の部分だけから出題して";
+  document.getElementById("diff-legend").textContent = mode==="practice" ? "難易度（例題を基準に）" : "難易度";
+  const labels=DIFF_OPTS[mode];
+  [...document.getElementById("difficulty").options].forEach(o=>{if(labels[o.value])o.textContent=labels[o.value];});
 }
 
 /* ========== クイズ ========== */
@@ -491,24 +651,31 @@ function renderQuestion(){
   document.getElementById("quiz-bar").style.width=(session.idx/session.ids.length*100)+"%";
   session.phase="question";
   const body=document.getElementById("quiz-body");
-  let html=`<div class="qtext">${esc(q.q)}</div>`;
+  let html=`<div class="qtext">${M(q.q)}</div>`;
   if(q.type==="choice"){
     // 出題ごとに選択肢をシャッフル（answerは文字列一致で判定するので順序に依存しない）
     session.order=[...q.choices].sort(()=>Math.random()-0.5);
     html+=`<div class="choices">`+session.order.map((c,i)=>
-      `<button class="choice" data-i="${i}" onclick="answerChoice(${i})"><span class="key">${i+1}</span><span>${esc(c)}</span></button>`).join("")+`</div>
+      `<button class="choice" data-i="${i}" onclick="answerChoice(${i})"><span class="key">${i+1}</span><span class="ct">${M(c)}</span></button>`).join("")+`</div>
       <div class="muted" style="margin-top:8px">キー: 1〜${session.order.length} で解答</div>`;
   }else if(q.type==="cloze"){
     html+=`<div class="row"><input id="cloze-input" placeholder="空欄に入る語句" style="flex:1" autocomplete="off">
       <button class="btn primary" onclick="answerCloze()">解答</button></div>
       <div class="muted" style="margin-top:8px">Enterでも解答できます</div>`;
+  }else if(q.type==="solve"){
+    html+=`<div class="row"><input id="solve-input" placeholder="最終的な答え（任意）" style="flex:1" autocomplete="off">
+      <button class="btn primary" onclick="answerSolve()">解答・解説を見る</button></div>
+      <div class="muted" style="margin-top:8px">紙に解いてから、解答・解説と見比べましょう。Enterでも表示できます。</div>`;
   }else{
     html+=`<p class="muted">頭の中で答えてから、模範解答と見比べてください。</p>
       <div class="row" style="margin-top:8px"><button class="btn primary" onclick="revealFree()">模範解答を見る</button></div>`;
   }
   body.innerHTML=html;
+  typesetMath(body);
   const ci=document.getElementById("cloze-input");
   if(ci){ci.focus();ci.addEventListener("keydown",e=>{if(e.key==="Enter")answerCloze();});}
+  const si=document.getElementById("solve-input");
+  if(si){si.focus();si.addEventListener("keydown",e=>{if(e.key==="Enter")answerSolve();});}
 }
 
 function answerChoice(i){
@@ -529,20 +696,40 @@ function answerCloze(){
   if(normalize(input)===normalize(q.answer)){finishAnswer(true);return;}
   // 表記ゆれの可能性があるので機械判定で✕にせず自己判定に回す
   session.phase="selfjudge";
-  document.getElementById("quiz-body").insertAdjacentHTML("beforeend",
-    `<div class="feedback"><div>あなたの解答: <b>${esc(input)}</b>　／　正解: <b>${esc(q.answer)}</b></div>
+  const body=document.getElementById("quiz-body");
+  body.insertAdjacentHTML("beforeend",
+    `<div class="feedback"><div>あなたの解答: <b>${M(input)}</b>　／　正解: <b>${M(q.answer)}</b></div>
      <div class="row" style="margin-top:8px">
        <button class="btn" onclick="finishAnswer(true)">合ってた（表記ゆれ）</button>
        <button class="btn" onclick="finishAnswer(false)">間違えてた</button></div></div>`);
+  typesetMath(body);
+}
+function answerSolve(){
+  if(session.phase!=="question")return;
+  const q=currentQ(), input=(document.getElementById("solve-input").value||"").trim();
+  session.phase="selfjudge";
+  const matched=input && normalize(input)===normalize(q.answer);
+  let html=`<div class="feedback">`;
+  if(input) html+=`<div>あなたの答え: <b>${M(input)}</b>${matched?' <span style="color:var(--ok)">✓ 最終答え一致</span>':''}</div>`;
+  html+=`<div style="margin-top:8px">最終解答: <b>${M(q.answer)}</b></div>
+    <div class="evidence"><b>解答・解説（おかしければ下のボタンで破棄を）</b>${M(q.solution||"")}</div>
+    <div class="row" style="margin-top:8px">
+      <button class="btn" onclick="finishAnswer(true)">◯ 解けた</button>
+      <button class="btn" onclick="finishAnswer(false)">✕ 解けなかった</button></div></div>`;
+  const body=document.getElementById("quiz-body");
+  body.insertAdjacentHTML("beforeend",html);
+  typesetMath(body);
 }
 function revealFree(){
   if(session.phase!=="question")return;
   const q=currentQ();
   session.phase="selfjudge";
-  document.getElementById("quiz-body").insertAdjacentHTML("beforeend",
-    `<div class="feedback"><div><b>模範解答:</b></div><div class="qtext" style="font-size:15px">${esc(q.answer)}</div>
+  const body=document.getElementById("quiz-body");
+  body.insertAdjacentHTML("beforeend",
+    `<div class="feedback"><div><b>模範解答:</b></div><div class="qtext" style="font-size:15px">${M(q.answer)}</div>
      <div class="row"><button class="btn" onclick="finishAnswer(true)">◯ 答えられた</button>
        <button class="btn" onclick="finishAnswer(false)">✕ 答えられなかった</button></div></div>`);
+  typesetMath(body);
 }
 
 function finishAnswer(correct){
@@ -553,16 +740,23 @@ function finishAnswer(correct){
   session.phase="feedback";
   // 自己判定UIが出ている場合は差し替え
   const old=document.querySelector("#quiz-body .feedback"); if(old)old.remove();
-  document.getElementById("quiz-body").insertAdjacentHTML("beforeend",
+  const detail = q.type==="solve"
+    ? `<div class="evidence"><b>解答・解説（おかしければ下のボタンで破棄を）</b>${M(q.solution||"")}</div>`
+    : (q.evidence?`<div class="evidence"><b>教材の根拠（おかしければ下のボタンで破棄を）</b>${M(q.evidence)}</div>`:"");
+  const ansLine = q.type==="free" ? ""
+    : `<div style="margin-top:4px">${q.type==="solve"?"最終解答":"正解"}: <b>${M(q.answer)}</b></div>`;
+  const body=document.getElementById("quiz-body");
+  body.insertAdjacentHTML("beforeend",
     `<div class="feedback">
       <div class="verdict ${correct?"ok":"ng"}">${correct?"正解！":"不正解"}</div>
-      ${q.type!=="free"?`<div style="margin-top:4px">正解: <b>${esc(q.answer)}</b></div>`:""}
-      ${q.explanation?`<div class="muted" style="margin-top:4px">${esc(q.explanation)}</div>`:""}
-      <div class="evidence"><b>教材の根拠（おかしければ下のボタンで破棄を）</b>${esc(q.evidence)}</div>
+      ${ansLine}
+      ${q.explanation?`<div class="muted" style="margin-top:4px">${M(q.explanation)}</div>`:""}
+      ${detail}
       <div class="row spread" style="margin-top:12px">
         <button class="ghost" onclick="retireCurrent()">⚠ この問題おかしい（破棄する）</button>
         <button class="btn primary" onclick="nextQuestion()">次へ (Enter)</button>
       </div></div>`);
+  typesetMath(body);
 }
 function retireCurrent(){
   const q=currentQ();
@@ -597,15 +791,16 @@ function renderHome(){
     ?"間違えた問題・期限が来た問題です":"復習する問題はありません";
   const list=document.getElementById("deck-list");
   if(state.decks.length===0){
-    list.innerHTML='<div class="muted" style="margin-top:8px">まだデッキがありません。「＋ 教材から作る」からどうぞ。</div>';
+    list.innerHTML='<div class="muted" style="margin-top:8px">まだデッキがありません。「＋ 問題を作る」からどうぞ。</div>';
     return;
   }
   list.innerHTML=[...state.decks].reverse().map(d=>{
     const qs=state.questions.filter(q=>q.deckId===d.id);
     const due=qs.filter(q=>!q.srs.retired && q.srs.due<=today).length;
+    const kind=d.mode==="review"?"確認テスト":"類題";
     return `<div class="deck-item" onclick="openDeck('${d.id}')">
       <div><div>${esc(d.name)}</div><div class="muted">${esc(d.sourceDigest)}…</div></div>
-      <div class="row"><span class="badge">${qs.length}問</span>${due?`<span class="badge due">復習${due}</span>`:""}</div></div>`;
+      <div class="row"><span class="badge">${kind}</span><span class="badge">${qs.length}問</span>${due?`<span class="badge due">復習${due}</span>`:""}</div></div>`;
   }).join("");
 }
 function openDeck(id){
@@ -615,7 +810,8 @@ function openDeck(id){
   document.getElementById("deck-title").textContent=d.name;
   const answeredQs=qs.filter(q=>q.srs.reps>0);
   const acc=answeredQs.length?Math.round(answeredQs.reduce((s,q)=>s+(q.srs.box>0?1:0),0)/answeredQs.length*100):null;
-  document.getElementById("deck-meta").textContent=`${d.createdAt} 作成・${qs.length}問${acc!==null?`・現在の定着 ${acc}%`:""}`;
+  const kind=d.mode==="review"?"確認テスト":"類題";
+  document.getElementById("deck-meta").textContent=`${kind}・${d.createdAt} 作成・${qs.length}問${acc!==null?`・現在の定着 ${acc}%`:""}`;
   document.getElementById("deck-table").innerHTML=
     `<tr><th>問題</th><th>タイプ</th><th>box</th><th>次回</th><th>ミス</th><th></th></tr>`+
     qs.map(q=>`<tr class="${q.srs.retired?"retired":""}">
@@ -684,6 +880,7 @@ function showView(name){
   for(const v of ["home","ingest","quiz","deck"])
     document.getElementById("view-"+v).classList.toggle("hidden",v!==name);
   if(name==="home") renderHome();
+  if(name==="ingest") applyMode();
 }
 let toastTimer=null;
 function toast(msg){
@@ -714,6 +911,7 @@ document.getElementById("import-file").addEventListener("change",e=>{
   if(e.target.files[0]) importState(e.target.files[0]);
   e.target.value="";
 });
+[...document.querySelectorAll('input[name="mode"]')].forEach(r=>r.addEventListener("change",applyMode));
 document.addEventListener("keydown",e=>{
   if(e.key==="Escape"){
     // 閉じ方によらず設定は保存する（Escだけ破棄になる事故を防ぐ）
