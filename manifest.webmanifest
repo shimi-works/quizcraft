@@ -1,0 +1,16 @@
+{
+  "name": "QuizCraft ― 例題から類題を一発生成",
+  "short_name": "QuizCraft",
+  "description": "例題（写真・テキスト）を渡すと、似た演習問題（類題）を解答・途中式つきで一発生成。",
+  "lang": "ja",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0f1115",
+  "theme_color": "#0f1115",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

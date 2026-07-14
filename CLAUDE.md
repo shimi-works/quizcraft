@@ -5,7 +5,7 @@
 - **例題（写真・テキスト）から類題（演習問題）を一発生成する単機能ツール**。AIが自分で解いた最終解答＋途中式つきで並べる
 - 設計思想: 「AIに類題作って」とチャットに打つより速く・写真から・数式がきれいに、の1画面に振り切る。**SRS/デッキ/クイズ進行のような重装備は持たない**（v1で持っていたが、一発生成に不要と判断して撤去。必要になったら git 履歴 v1 から）
 - 数式は **MathJax（tex-svg・mhchem）で描画**（SnapTeX から流用）。生成プロンプトは $…$ / $$…$$ のLaTeXを出させる
-- 構成: 単一HTMLファイル（index.html）のみ。ビルドなし・依存なし（MathJaxのみCDN）
+- 構成: 単一HTMLファイル（index.html）＋ PWA用の manifest.webmanifest / sw.js / icons（ゆるスケの型）。ビルドなし・依存なし（MathJaxのみCDN）
 - LLM: **Gemini API無料枠をブラウザから直叩き**（`dev-os/knowledge/patterns/gemini-direct-browser.md` の型）。既定 `gemini-flash-latest`、429/モデル不可で自動フォールバック
 - 管理情報: `C:\Users\smzyt\apps\dev-os\projects\quizcraft\`（設計判断は design.md）
 
@@ -21,6 +21,8 @@
 - **精度対策**: ①全問に solution（AIが解いた途中式）必須で、利用者が検算できる ②プロンプトで「自分で解いて検算してから出題」を強制 ③解説は各問たたんで表示（解いてから開く）
 - **作図は inline SVG**: 物理・幾何など図が要る問題は figure（SVG文字列）で出させる。AI生成SVGは必ず `sanitizeSVG()` を通してから挿入する（`<script>`/on*属性/外部href/foreignObject等を除去。ルート`<svg>`自身の属性も掃除すること＝子だけでは取りこぼす）。SVGは stroke="currentColor" でダーク/ライト両対応、viewBox必須（無ければ非表示）
 - 生成は品質優先の既定（thinking有効）。速度が要るときは設定で軽量モデル（flash-lite）に落とす運用
+- sw.js のキャッシュ名 `quizcraft-v1` は、配信物の構成を変えたらバージョンを上げる
+- 印刷CSSの `body>*:not(#print-area):not(svg)` の `:not(svg)` は MathJax のグローバル字形キャッシュ用。外すと印刷で数式が消える
 
 ## 動作確認
 

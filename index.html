@@ -3,6 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0f1115">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
 <title>QuizCraft ― 例題から類題を一発生成</title>
 <style>
 :root{
@@ -100,6 +103,21 @@ mjx-container{overflow-x:auto;overflow-y:hidden;max-width:100%}
 #toast.show{opacity:1}
 .hidden{display:none!important}
 footer{padding:10px 18px;color:var(--sub);font-size:12px;border-top:1px solid var(--line);text-align:center}
+
+/* 印刷（演習プリント）: 問題ページ→改ページ→解答ページ。画面では非表示 */
+#print-area{display:none}
+@media print{
+  /* MathJaxのグローバル字形キャッシュ(svg)は隠すと数式が消えるため除外 */
+  body>*:not(#print-area):not(svg){display:none!important}
+  #print-area{display:block!important;color:#000;background:#fff;font-size:12pt;line-height:1.7}
+  body{background:#fff!important;display:block}
+  #print-area h2{font-size:14pt;margin:0 0 12pt}
+  #print-area .pans{page-break-before:always;break-before:page}
+  #print-area .pq{margin:0 0 14pt;page-break-inside:avoid;break-inside:avoid;white-space:pre-wrap}
+  #print-area .psol{color:#333;font-size:11pt;margin-top:4pt;white-space:pre-wrap}
+  #print-area .pfig{margin:8pt 0;text-align:center}
+  #print-area .pfig svg{max-width:70%;max-height:220pt;height:auto}
+}
 </style>
 </head>
 <body>
@@ -170,7 +188,9 @@ footer{padding:10px 18px;color:var(--sub);font-size:12px;border-top:1px solid va
         <h2 style="margin:0">② 類題</h2>
         <div class="row" id="result-tools" style="display:none">
           <button class="btn ghost" id="toggle-ans" onclick="toggleAllAnswers()">答えを全部開く</button>
+          <button class="btn ghost" onclick="copyQuestionsOnly()">問題だけコピー</button>
           <button class="btn ghost" onclick="copyAll()">全部コピー</button>
+          <button class="btn ghost" onclick="printSet()">印刷</button>
         </div>
       </div>
       <div class="status" id="status"></div>
@@ -212,6 +232,7 @@ footer{padding:10px 18px;color:var(--sub);font-size:12px;border-top:1px solid va
   </div>
 </div>
 
+<div id="print-area"></div>
 <div id="toast"></div>
 
 <script>
@@ -417,7 +438,7 @@ async function generate(append){
     if(append && current){
       current.items.push(...items);
     }else{
-      current={topic:res.topic||"", items, srcText:text||"（画像の例題）", hasImg};
+      current={topic:res.topic||"", items, srcText:text||"（画像の例題）", srcFull:text, hasImg};
       pushHist(current);
     }
     renderResults();
@@ -490,6 +511,30 @@ async function copyAll(){
   await copyText(head+current.items.map(itemText).join("\n\n"));
   toast("全部コピーしました");
 }
+// 解答を見ずに解く・人に出題する用（問題文のみ）
+async function copyQuestionsOnly(){
+  if(!current)return;
+  const head=current.topic?`【${current.topic}】\n\n`:"";
+  await copyText(head+current.items.map((it,i)=>`${i+1}. ${it.q}`).join("\n\n"));
+  toast("問題だけコピーしました");
+}
+
+/* ========== 印刷（演習プリント） ========== */
+async function printSet(){
+  if(!current || !current.items.length)return;
+  const pa=$("print-area"), qs=current.items;
+  pa.innerHTML=
+    `<h2>${M(current.topic||"演習問題")}（${qs.length}問）</h2>`+
+    qs.map((it,i)=>`<div class="pq"><b>問${i+1}.</b>　${M(it.q)}${(()=>{const f=sanitizeSVG(it.figure);return f?`<div class="pfig">${f}</div>`:"";})()}</div>`).join("")+
+    `<h2 class="pans">解答・解説</h2>`+
+    qs.map((it,i)=>`<div class="pq"><b>問${i+1}.</b>　<b>答え:</b> ${M(it.answer)}<div class="psol">${M(it.solution)}</div></div>`).join("");
+  setStatus('<span class="spinner"></span>印刷の準備中…');
+  ensureMathJax(()=>{
+    const done=()=>{setStatus("");window.print();};
+    if(window.MathJax&&window.MathJax.typesetPromise) window.MathJax.typesetPromise([pa]).then(done,done);
+    else done();
+  });
+}
 
 /* ========== 画像取り込み ========== */
 function addImageFile(file){
@@ -526,7 +571,8 @@ function loadHist(){try{return JSON.parse(localStorage.getItem(LS_HIST))||[]}cat
 function saveHist(h){localStorage.setItem(LS_HIST,JSON.stringify(h.slice(0,HIST_MAX)));}
 function pushHist(gen){
   const h=loadHist();
-  h.unshift({topic:gen.topic, digest:gen.srcText.replace(/\s+/g," ").slice(0,60), items:gen.items});
+  // src=例題全文（「開く」で入力欄に復元し、「もっと作る」が別の例題とズレないため）
+  h.unshift({topic:gen.topic, digest:gen.srcText.replace(/\s+/g," ").slice(0,60), src:(gen.srcFull||"").slice(0,4000), items:gen.items});
   saveHist(h); renderHist();
 }
 function renderHist(){
@@ -537,7 +583,12 @@ function renderHist(){
     const row=document.createElement("div"); row.className="h";
     const t=document.createElement("div"); t.className="t"; t.textContent=(it.topic||it.digest||"類題")+`（${it.items.length}問）`;
     const open=document.createElement("button"); open.textContent="開く";
-    open.onclick=()=>{ current={topic:it.topic,items:it.items,srcText:it.digest,hasImg:false}; allOpen=false; renderResults(); setStatus("履歴から表示しました。"); window.scrollTo({top:0,behavior:"smooth"}); };
+    open.onclick=()=>{
+      current={topic:it.topic,items:it.items,srcText:it.digest,srcFull:it.src||"",hasImg:false}; allOpen=false;
+      // 入力欄もこの生成時の例題に戻す（「もっと作る」が別の例題を拾わないように）。旧履歴(src無し)は触らない
+      if(it.src){$("src-text").value=it.src; images=[]; renderThumbs();}
+      renderResults(); setStatus("履歴から表示しました。"); window.scrollTo({top:0,behavior:"smooth"});
+    };
     const del=document.createElement("button"); del.textContent="🗑";
     del.onclick=()=>{const a=loadHist();a.splice(i,1);saveHist(a);renderHist();};
     row.append(t,open,del); el.append(row);
@@ -576,20 +627,28 @@ dz.addEventListener("dragleave",()=>dz.classList.remove("drag"));
 dz.addEventListener("drop",e=>{e.preventDefault();dz.classList.remove("drag");for(const f of e.dataTransfer.files) addImageFile(f);});
 window.addEventListener("paste",e=>{
   if(!$("settings-overlay").classList.contains("hidden"))return;
+  if(!e.clipboardData)return;
   let got=false;
-  for(const item of e.clipboardData.items) if(item.type.startsWith("image/")){addImageFile(item.getAsFile());got=true;}
+  for(const item of e.clipboardData.items) if(item.type.startsWith("image/")){
+    const f=item.getAsFile();               // 環境によりnullのことがある
+    if(f){addImageFile(f);got=true;}
+  }
   if(got)e.preventDefault();
 });
 document.addEventListener("keydown",e=>{
   if(e.key==="Escape" && !$("settings-overlay").classList.contains("hidden")){closeSettings();return;}
-  // Ctrl/Cmd+Enter で生成
-  if((e.ctrlKey||e.metaKey) && e.key==="Enter"){e.preventDefault();generate(false);}
+  // Ctrl/Cmd+Enter で生成（設定モーダルを開いている間は裏で生成しない）
+  if((e.ctrlKey||e.metaKey) && e.key==="Enter"){
+    if(!$("settings-overlay").classList.contains("hidden"))return;
+    e.preventDefault();generate(false);
+  }
 });
 $("settings-overlay").addEventListener("click",e=>{if(e.target.id==="settings-overlay")closeSettings();});
 
 $("set-model").value=MODEL;
 renderHist();
 if(!getKey()) setStatus('まず右上の <b>⚙設定</b> から Gemini APIキー（無料）を入れてください。');
+if("serviceWorker" in navigator && location.protocol==="https:"){navigator.serviceWorker.register("./sw.js").catch(()=>{});}
 </script>
 </body>
 </html>
