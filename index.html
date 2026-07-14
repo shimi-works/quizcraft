@@ -273,7 +273,8 @@ function ensureMathJax(cb){
   if(cb)mjQueue.push(cb);
   if(mjLoading)return;
   mjLoading=true;
-  window.MathJax={loader:{load:["[tex]/mhchem"]},tex:{packages:{"[+]":["mhchem"]},inlineMath:[["$","$"],["\\(","\\)"]],displayMath:[["$$","$$"],["\\[","\\]"]]},svg:{fontCache:"global"},startup:{typeset:false}};
+  // options.skipHtmlTags に svg: 図中の $…$ ラベルは typesetSvgLabels が処理する（通常typesetが先に食うと<text>内が壊れる）
+  window.MathJax={loader:{load:["[tex]/mhchem"]},tex:{packages:{"[+]":["mhchem"]},inlineMath:[["$","$"],["\\(","\\)"]],displayMath:[["$$","$$"],["\\[","\\]"]]},options:{skipHtmlTags:{"[+]":["svg"]}},svg:{fontCache:"global"},startup:{typeset:false}};
   const s=document.createElement("script");
   s.src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js";
   s.onload=()=>{const p=(window.MathJax&&window.MathJax.startup&&window.MathJax.startup.promise)||Promise.resolve();p.then(()=>{mjReady=true;flushMj();},()=>{mjReady=true;flushMj();});};
@@ -286,6 +287,39 @@ function typesetMath(el){
     if(!window.MathJax||!window.MathJax.typesetPromise)return;
     try{window.MathJax.typesetClear&&window.MathJax.typesetClear([el]);}catch(_){}
     window.MathJax.typesetPromise([el]).catch(()=>{});
+  });
+}
+// 作図SVG内の <text>$…$</text> ラベルを tex2svg で数式化して同じ位置に埋め込む。
+// <text> の中身全体がちょうど1つの $…$ のときだけ変換（混在はプロンプトで禁止）。オフライン時は生テキストのまま。
+function typesetSvgLabels(root){
+  if(!root)return;
+  ensureMathJax(()=>{
+    const MJ=window.MathJax;
+    if(!MJ||!MJ.tex2svg)return;
+    let changed=false;
+    root.querySelectorAll(".fig svg text, .pfig svg text").forEach(t=>{
+      const m=/^\s*\$([^$]+)\$\s*$/.exec(t.textContent||"");
+      if(!m)return;
+      try{
+        const out=MJ.tex2svg(m[1],{display:false}).querySelector("svg");
+        if(!out)return;
+        const fs=parseFloat(t.getAttribute("font-size"))||14, ex=fs*0.5;   // 1ex ≈ 0.5em
+        const w=(parseFloat(out.getAttribute("width"))||0)*ex;
+        const h=(parseFloat(out.getAttribute("height"))||0)*ex;
+        if(!w||!h)return;
+        const dy=(parseFloat((out.style.verticalAlign||"0").replace("ex",""))||0)*ex; // 負=ベースラインより下の深さ
+        const x=parseFloat(t.getAttribute("x"))||0, y=parseFloat(t.getAttribute("y"))||0;
+        const anchor=t.getAttribute("text-anchor");
+        out.removeAttribute("style");
+        out.setAttribute("x",anchor==="middle"?x-w/2:anchor==="end"?x-w:x);
+        out.setAttribute("y",y-h-dy);   // 元の <text> のベースラインに揃える
+        out.setAttribute("width",w); out.setAttribute("height",h);
+        t.replaceWith(out);
+        changed=true;
+      }catch(_){}
+    });
+    // fontCache:"global" の字形キャッシュをページに反映（typesetPromise外でtex2svgしたときに必要）
+    if(changed){try{MJ.startup&&MJ.startup.document&&MJ.startup.document.updateDocument();}catch(_){}}
   });
 }
 
@@ -368,7 +402,7 @@ function buildPrompt(text, n, difficulty, extra, hasImages, avoid){
 4. 数式・記号はすべてLaTeXで書く。文中の式はインライン $ … $、独立して見せる式は別行立て $$ … $$。分数は \\dfrac、根号 \\sqrt、指数・添字 x^{2}, a_{n}、総和 \\sum、積分 \\int などを正しく使う。化学式・反応式は mhchem 記法 \\ce{...}。
 5. 難易度: ${diffMap[difficulty]||diffMap.standard}。
 6. 例題が数学以外（英作文・小論述・語学・歴史論述など）でも、同じ形式の新しい練習問題として作る。その場合 answer は模範解答、solution は書き方・採点のポイントにする。
-7. 図があると理解を助ける問題（物理の力学・電気回路、幾何、グラフの読み取り、ばね・斜面・光線図など）では、figure に作図の inline SVG を入れる。図が不要な問題では figure は空文字にする。SVGの決まり（厳守）: ①必ず viewBox を付け、width/height 属性は付けない ②線は stroke="currentColor"、塗りは fill="currentColor" か "none"（色コードを直接指定しない＝ダーク/ライト両対応）③<script>・外部参照・画像リンク（href/xlink:href）・イベント属性は使わない ④ラベルの文字は <text> にプレーンな文字で書く（$…$ 等のLaTeXは使わない。角度は "30°"、単位は "m/s" のように直接）⑤矢印・力・座標軸などは線と多角形で描くシンプルな線画にする ⑥図は問題文の設定と厳密に一致させる（問題文にある要素の形・向き・位置関係をそのまま描き、問題文にない要素を描き足さない。閉じた容器は閉じた形、開いた端は開けて描く）⑦viewBox="0 0 400 220" 程度の横長を基本に、四辺に約20の余白を取り、要素は余白に偏らず全体にバランスよく配置する。線は stroke-width="2" 前後で統一 ⑧<text> は font-size="13"〜"16" で、線・図形・他のラベルと重ならないよう少し離した位置に置く（物体名はその物体のそば、速度ラベルは矢印のそば）。
+7. 図があると理解を助ける問題（物理の力学・電気回路、幾何、グラフの読み取り、ばね・斜面・光線図など）では、figure に作図の inline SVG を入れる。図が不要な問題では figure は空文字にする。SVGの決まり（厳守）: ①必ず viewBox を付け、width/height 属性は付けない ②線は stroke="currentColor"、塗りは fill="currentColor" か "none"（色コードを直接指定しない＝ダーク/ライト両対応）③<script>・外部参照・画像リンク（href/xlink:href）・イベント属性は使わない ④ラベルは <text> で書く。変数・数式のラベルは <text> の中身全体をちょうど1つの $…$ のLaTeXにする（例: <text x="120" y="96" font-size="14" text-anchor="middle">$v_0$</text>）。1つの <text> 内でプレーン文字と $…$ を混在させない（「速さ $v_0$」は不可。必要なら <text> を分ける）。単位・角度・日本語はプレーンのまま書く（"30°"、"m/s" など）⑤矢印・力・座標軸などは線と多角形で描くシンプルな線画にする ⑥図は問題文の設定と厳密に一致させる（問題文にある要素の形・向き・位置関係をそのまま描き、問題文にない要素を描き足さない。閉じた容器は閉じた形、開いた端は開けて描く）⑦viewBox="0 0 400 220" 程度の横長を基本に、四辺に約20の余白を取り、要素は余白に偏らず全体にバランスよく配置する。線は stroke-width="2" 前後で統一 ⑧<text> には font-size="13"〜"16" を必ず指定し、線・図形・他のラベルと重ならないよう少し離した位置に置く（物体名はその物体のそば、速度ラベルは矢印のそば）。
 8. topic に、この例題が何の分野・どんなタイプの問題かを1行で書く。${avoid?`
 9. 次の問題とかぶらない別バリエーションにする（既出の要約）: ${avoid}`:""}${extra?`
 
@@ -490,6 +524,7 @@ function renderResults(){
         <div class="sol">${M(it.solution)}</div>
       </details>
     </div>`).join("");
+  typesetSvgLabels(host);
   typesetMath(host);
   $("result-tools").style.display="flex";
   $("more-row").style.display="flex";
@@ -545,6 +580,7 @@ async function printSet(){
     qs.map((it,i)=>`<div class="pq"><b>問${i+1}.</b>　<b>答え:</b> ${M(it.answer)}<div class="psol">${M(it.solution)}</div></div>`).join("");
   setStatus('<span class="spinner"></span>印刷の準備中…');
   ensureMathJax(()=>{
+    typesetSvgLabels(pa);
     const done=()=>{setStatus("");window.print();};
     if(window.MathJax&&window.MathJax.typesetPromise) window.MathJax.typesetPromise([pa]).then(done,done);
     else done();
