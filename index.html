@@ -299,12 +299,20 @@ async function callGemini(parts, schema, maxTokens=24000){
     const model=pool[mi];
     const body={contents:[{parts}],generationConfig:{responseMimeType:"application/json",responseSchema:schema,maxOutputTokens:Math.min(maxTokens,MODEL_MAX_TOKENS[model]||maxTokens)}};
     const url=`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
-    let res;
+    let res=null, timedOut=false;
     for(let attempt=0;attempt<3;attempt++){
-      try{ res=await fetch(url,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)}); }
-      catch(netErr){ throw new Error("ネットワークに接続できませんでした。オフラインか確認してください。"); }
-      if(res.status!==503 && res.status!==500) break;
+      const ctrl=new AbortController();
+      const timer=setTimeout(()=>ctrl.abort(),120000);
+      try{ res=await fetch(url,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body),signal:ctrl.signal}); }
+      catch(netErr){ res=null; timedOut=netErr?.name==="AbortError"; }
+      finally{ clearTimeout(timer); }
+      if(res && res.status!==503 && res.status!==500) break;
       if(attempt<2) await new Promise(r=>setTimeout(r,1500*(attempt+1)));
+    }
+    if(!res){
+      if(navigator.onLine===false) throw new Error("オフラインのようです。ネットワーク接続を確認してから、もう一度お試しください。");
+      if(timedOut) throw new Error("応答が時間内に返ってきませんでした（自動で再試行済み）。回線が不安定かもしれません。少し待ってから再試行してください。");
+      throw new Error("通信に失敗しました（自動で3回再試行済み）。電波の良い場所で再試行してください。それでも失敗する場合は、広告ブロッカー等の拡張機能がAPI通信を遮っていないか確認してください。");
     }
     let raw="";
     if(!res.ok){try{const e=await res.clone().json();raw=e.error?.message||"";}catch(_){}}
