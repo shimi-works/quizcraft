@@ -72,6 +72,8 @@ header .spacer{flex:1}
 .q .qn{width:24px;height:24px;flex:0 0 auto;border-radius:50%;background:var(--panel);border:1px solid var(--line);color:var(--sub);font-size:12px;display:flex;align-items:center;justify-content:center}
 .q .qbadge{font-size:11px;color:var(--sub);border:1px solid var(--line);border-radius:999px;padding:1px 8px}
 .q .qtext{font-size:16px;white-space:pre-wrap;overflow-x:auto}
+.q .fig{margin:12px 0;text-align:center;color:var(--text)}
+.q .fig svg{max-width:100%;max-height:340px;height:auto;background:#0c0f14;border:1px solid var(--line);border-radius:8px;padding:8px}
 .q details{margin-top:10px;border-top:1px dashed var(--line);padding-top:10px}
 .q details summary{cursor:pointer;color:var(--accent);font-size:13px;list-style:none}
 .q details summary::-webkit-details-marker{display:none}
@@ -306,11 +308,12 @@ const SCHEMA={type:"OBJECT",properties:{
   topic:{type:"STRING"},
   questions:{type:"ARRAY",items:{type:"OBJECT",properties:{
     q:{type:"STRING"},
+    figure:{type:"STRING"},
     answer:{type:"STRING"},
     solution:{type:"STRING"},
     difficulty:{type:"STRING",enum:["basic","standard","advanced"]}
   },required:["q","answer","solution","difficulty"],
-    propertyOrdering:["q","answer","solution","difficulty"]}}
+    propertyOrdering:["q","figure","answer","solution","difficulty"]}}
 },required:["topic","questions"],propertyOrdering:["topic","questions"]};
 
 function buildPrompt(text, n, difficulty, extra, hasImages, avoid){
@@ -327,8 +330,9 @@ function buildPrompt(text, n, difficulty, extra, hasImages, avoid){
 4. 数式・記号はすべてLaTeXで書く。文中の式はインライン $ … $、独立して見せる式は別行立て $$ … $$。分数は \\dfrac、根号 \\sqrt、指数・添字 x^{2}, a_{n}、総和 \\sum、積分 \\int などを正しく使う。化学式・反応式は mhchem 記法 \\ce{...}。
 5. 難易度: ${diffMap[difficulty]||diffMap.standard}。
 6. 例題が数学以外（英作文・小論述・語学・歴史論述など）でも、同じ形式の新しい練習問題として作る。その場合 answer は模範解答、solution は書き方・採点のポイントにする。
-7. topic に、この例題が何の分野・どんなタイプの問題かを1行で書く。${avoid?`
-8. 次の問題とかぶらない別バリエーションにする（既出の要約）: ${avoid}`:""}${extra?`
+7. 図があると理解を助ける問題（物理の力学・電気回路、幾何、グラフの読み取り、ばね・斜面・光線図など）では、figure に作図の inline SVG を入れる。図が不要な問題では figure は空文字にする。SVGの決まり（厳守）: ①必ず viewBox を付け、width/height 属性は付けない ②線は stroke="currentColor"、塗りは fill="currentColor" か "none"（色コードを直接指定しない＝ダーク/ライト両対応）③<script>・外部参照・画像リンク（href/xlink:href）・イベント属性は使わない ④ラベルの文字は <text> にプレーンな文字で書く（$…$ 等のLaTeXは使わない。角度は "30°"、単位は "m/s" のように直接）⑤矢印・力・座標軸などは線と多角形で描くシンプルな線画にする。
+8. topic に、この例題が何の分野・どんなタイプの問題かを1行で書く。${avoid?`
+9. 次の問題とかぶらない別バリエーションにする（既出の要約）: ${avoid}`:""}${extra?`
 
 追加の指示: ${extra}`:""}
 
@@ -342,9 +346,45 @@ function validate(raw){
   const ok=[];
   for(const r of (raw||[])){
     if(!r || !r.q || !r.answer || !r.solution) continue;
-    ok.push({q:String(r.q), answer:String(r.answer), solution:String(r.solution), difficulty:r.difficulty||"standard"});
+    ok.push({q:String(r.q), figure:String(r.figure||""), answer:String(r.answer), solution:String(r.solution), difficulty:r.difficulty||"standard"});
   }
   return ok;
+}
+
+/* ========== 作図SVGのサニタイズ（AI生成SVGを安全にインライン描画） ========== */
+const SVG_TAGS=new Set(["svg","g","defs","marker","path","line","polyline","polygon","rect","circle","ellipse","text","tspan","title","desc"]);
+function sanitizeSVG(raw){
+  if(!raw) return "";
+  // まず素朴に危険物を除去（DOMParserの取りこぼし対策の belt & suspenders）
+  let s=String(raw).replace(/<\s*script[\s\S]*?<\s*\/\s*script\s*>/gi,"").replace(/<\s*foreignObject[\s\S]*?<\s*\/\s*foreignObject\s*>/gi,"");
+  if(!/^\s*<svg[\s>]/i.test(s)) return "";
+  let doc;
+  try{ doc=new DOMParser().parseFromString(s,"image/svg+xml"); }catch(_){ return ""; }
+  if(doc.querySelector("parsererror")) return "";
+  const svg=doc.querySelector("svg");
+  if(!svg) return "";
+  const cleanAttrs=el=>{
+    for(const attr of [...el.attributes]){
+      const name=attr.name.toLowerCase(), val=attr.value||"";
+      if(name.startsWith("on")){ el.removeAttribute(attr.name); continue; }
+      if(/^(href|xlink:href)$/.test(name) && !val.trim().startsWith("#")){ el.removeAttribute(attr.name); continue; }
+      if(/(javascript:|expression\s*\(|url\s*\((?!\s*#))/i.test(val)){ el.removeAttribute(attr.name); continue; }
+    }
+  };
+  const walk=node=>{
+    for(const c of [...node.children]){
+      const tag=(c.tagName||"").toLowerCase();
+      if(!SVG_TAGS.has(tag)){ c.remove(); continue; }
+      cleanAttrs(c);
+      walk(c);
+    }
+  };
+  cleanAttrs(svg);   // ルート<svg>自身の on* 等も除去（子だけでは取りこぼす）
+  walk(svg);
+  if(!svg.getAttribute("viewBox")) return "";          // 拡縮できないSVGは出さない
+  svg.removeAttribute("width"); svg.removeAttribute("height");
+  svg.setAttribute("preserveAspectRatio","xMidYMid meet");
+  return svg.outerHTML;
 }
 
 /* ========== 生成 ========== */
@@ -405,6 +445,7 @@ function renderResults(){
         <button class="copybtn" onclick="copyOne(${i})">📋 コピー</button>
       </div>
       <div class="qtext">${M(it.q)}</div>
+      ${(()=>{const f=sanitizeSVG(it.figure);return f?`<div class="fig">${f}</div>`:"";})()}
       <details ${allOpen?"open":""}>
         <summary>解答・解説を見る</summary>
         <div class="ans"><b>答え:</b> ${M(it.answer)}</div>
